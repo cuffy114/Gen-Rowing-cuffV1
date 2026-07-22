@@ -841,63 +841,101 @@ body{font-family:system-ui,'Segoe UI',sans-serif;background:var(--bg);color:var(
 
 <script>
 // ============================================================
-// LIVE DATA — synced from Google Sheets via gviz endpoint
-// Sheet must be shared as "Anyone with the link can view"
-// Tabs expected: DE_Weekly, DE_Sessions, DE_TermGrid
-// Column headers in row 1 must match the keys used in code
-// (e.g. SeasonWk, Term, WkLabel, WkStarting, Day, Session, ...)
+// LIVE DATA — served from the Jinter Program Excel via a
+// Google Apps Script web app (JSONP). The script reads the
+// .xlsx from Google Drive and returns DE_Weekly / DE_Sessions
+// / DE_TermGrid. Data is cached ~15 min and refreshes on its
+// own; editing the Excel is enough — no redeploy needed.
 // ============================================================
-const SHEET_ID = '1RD6yivM1fgby1dYaOvotZuHD3akn744O5PSmqck-Bmw';
-const SHEET_TABS = { weekly: 'DE_Weekly', sessions: 'DE_Sessions', termgrid: 'DE_TermGrid' };
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyhT0czoApHxJyA4VLNn3Ln7CQ4INY_lv9dXBKXHsvJMMxkjCP5PkzMZVBo_6e9G6s_4A/exec';
+const LIVE_TIMEOUT_MS = 15000;        // show an error only if the first load stalls
+const REFRESH_ON_RETURN_MIN = 10;     // silently re-fetch on tab return if data is older than this
+
+let _lastDataTime = null;
+let _initialLoadDone = false;
+
+// JSONP callback — the Apps Script responds with handleLiveData({...})
+function handleLiveData(data) {
+  window._liveDataArrived = true;
+  if (data && data.DE_Sessions && data.DE_Weekly && data.DE_TermGrid && !data.error) {
+    weekly   = data.DE_Weekly;
+    sessions = data.DE_Sessions;
+    termgrid = data.DE_TermGrid;
+    onDataReady();
+    _lastDataTime = new Date();
+    _initialLoadDone = true;
+    updateStatusPill();
+  } else if (!_initialLoadDone) {
+    showDataError(new Error((data && data.error) ? data.error : 'Live data was empty or malformed.'));
+  }
+  // A failed background refresh keeps the data already on screen.
+}
+
+function updateStatusPill() {
+  const st = document.getElementById('hdr-status');
+  if (!st || !_lastDataTime) return;
+  const mins = Math.floor((new Date() - _lastDataTime) / 60000);
+  let label;
+  if (mins < 1) label = 'Live ✓ · just now';
+  else if (mins === 1) label = 'Live ✓ · 1 min ago';
+  else if (mins < 60) label = 'Live ✓ · ' + mins + ' min ago';
+  else label = 'Live ✓ · ' + Math.floor(mins / 60) + 'h ago';
+  st.textContent = label;
+  st.style.background = 'var(--burg)';
+}
+setInterval(updateStatusPill, 60000);
+
+function fetchLiveData() {
+  window._liveDataArrived = false;
+  const script = document.createElement('script');
+  script.src = APPS_SCRIPT_URL + '?callback=handleLiveData&t=' + Date.now();
+  script.onerror = function () {
+    if (!window._liveDataArrived && !_initialLoadDone) {
+      showDataError(new Error('Could not reach the live data feed.'));
+    }
+  };
+  document.head.appendChild(script);
+  // Remove the injected tag so they don't pile up
+  setTimeout(function () {
+    if (script.parentNode) script.parentNode.removeChild(script);
+  }, 30000);
+}
 
 function loadData() {
-  Promise.all([
-    fetchSheet(SHEET_TABS.weekly),
-    fetchSheet(SHEET_TABS.sessions),
-    fetchSheet(SHEET_TABS.termgrid),
-  ]).then(([w, s, t]) => {
-    weekly   = w;
-    sessions = s;
-    termgrid = t;
-    onDataReady();
-  }).catch(showDataError);
+  fetchLiveData();
+  setTimeout(function () {
+    if (!window._liveDataArrived && !_initialLoadDone) {
+      showDataError(new Error('The live data feed did not respond in time.'));
+    }
+  }, LIVE_TIMEOUT_MS);
 }
 
-function fetchSheet(tab) {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tab)}`;
-  return fetch(url).then(r => {
-    if (!r.ok) throw new Error(`HTTP ${r.status} loading "${tab}"`);
-    return r.text();
-  }).then(text => parseGviz(text, tab));
-}
-
-function parseGviz(text, tab) {
-  const start = text.indexOf('{');
-  const end   = text.lastIndexOf('}');
-  if (start < 0 || end < 0) throw new Error(`Unparseable response for "${tab}"`);
-  const json = JSON.parse(text.slice(start, end + 1));
-  if (json.status === 'error') {
-    const msg = (json.errors && json.errors[0] && json.errors[0].detailed_message) || 'gviz error';
-    throw new Error(`${tab}: ${msg.replace(/<[^>]+>/g, '')}`);
+// Silent refresh when the tab regains focus and the data is stale
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible' && _lastDataTime) {
+    const ageMin = (new Date() - _lastDataTime) / 60000;
+    if (ageMin >= REFRESH_ON_RETURN_MIN) fetchLiveData();
   }
-  const cols = json.table.cols.map((c, i) => ((c.label || c.id || `col${i}`) + '').trim());
-  return json.table.rows.map(r => {
-    const obj = {};
-    cols.forEach((name, i) => {
-      const cell = r.c && r.c[i];
-      if (!cell) { obj[name] = ''; return; }
-      const v = cell.f != null ? cell.f : cell.v;
-      obj[name] = v == null ? '' : String(v);
+});
+
+// Tap the status pill to force an immediate refresh
+(function () {
+  const st = document.getElementById('hdr-status');
+  if (st) {
+    st.style.cursor = 'pointer';
+    st.title = 'Tap to refresh';
+    st.addEventListener('click', function () {
+      st.textContent = 'Refreshing…';
+      fetchLiveData();
     });
-    return obj;
-  });
-}
+  }
+})();
 
 function showDataError(err) {
-  console.error('[Sheets sync]', err);
+  console.error('[Live data]', err);
   const pill = document.getElementById('hdr-status');
   if (pill) {
-    pill.textContent = 'Error';
+    pill.textContent = 'Offline';
     pill.style.background = 'var(--burg)';
   }
   const main = document.querySelector('main.main');
@@ -905,7 +943,7 @@ function showDataError(err) {
     main.innerHTML = `<div class="error-card">
       <h3>Could not load live data</h3>
       <p>${String(err.message || err).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</p>
-      <p>Check that the Google Sheet is shared as <strong>"Anyone with the link can view"</strong>, and that the tabs are named <code>DE_Weekly</code>, <code>DE_Sessions</code>, and <code>DE_TermGrid</code> with headers matching the expected column names.</p>
+      <p>The program data is served by a Google Apps Script web app. Check that its deployment access is set to <strong>"Anyone"</strong> and that the Drive file name matches the script's <code>XLSX_NAME</code>.</p>
     </div>`;
   }
 }
