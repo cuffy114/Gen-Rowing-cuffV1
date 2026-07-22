@@ -605,9 +605,66 @@ body{font-family:system-ui,'Segoe UI',sans-serif;background:var(--bg);color:var(
   left: 28px;
 }
 
+/* ── PASSWORD GATE ── */
+#pw-gate {
+  position: fixed; inset: 0; z-index: 9999;
+  background: linear-gradient(135deg, var(--navy) 0%, #3d0a1a 100%);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+.pw-card {
+  background: #fff; border-radius: 14px;
+  padding: 2.5rem 2.8rem; max-width: 420px; width: 100%;
+  box-shadow: 0 12px 60px rgba(0,0,0,.5);
+  text-align: center;
+  border-top: 5px solid var(--burg);
+}
+.pw-title {
+  font-family: Georgia, serif; font-size: 1.6rem; font-weight: 700;
+  color: var(--navy); margin-bottom: .3rem;
+}
+.pw-sub {
+  font-family: 'Courier New', monospace; font-size: .72rem;
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--burg); margin-bottom: 1.6rem;
+}
+.pw-input {
+  width: 100%; padding: .85rem 1rem;
+  font-size: 1.1rem; text-align: center;
+  border: 2px solid var(--burg); border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  color: var(--navy); outline: none;
+  margin-bottom: .9rem;
+}
+.pw-input:focus { box-shadow: 0 0 0 3px rgba(138,21,56,.2); }
+.pw-btn {
+  width: 100%; padding: .85rem 1rem;
+  font-size: 1rem; font-weight: 700;
+  font-family: Georgia, serif;
+  background: var(--burg); color: #fff;
+  border: none; border-radius: 8px; cursor: pointer;
+  transition: background .15s;
+}
+.pw-btn:hover { background: #6d0a20; }
+.pw-err {
+  color: var(--burg); font-size: .8rem; margin-top: .8rem;
+  min-height: 1.1rem; font-weight: 600;
+}
+
 </style>
 </head>
 <body>
+
+<!-- ── PASSWORD GATE ── -->
+<div id="pw-gate">
+  <div class="pw-card">
+    <div class="pw-title">Genazzano Rowing</div>
+    <div class="pw-sub">Jinter Program · 2026–27</div>
+    <input type="password" id="pw-input" class="pw-input" placeholder="Enter password" autocomplete="off" onkeydown="if(event.key==='Enter')pwCheck()">
+    <button class="pw-btn" onclick="pwCheck()">Enter</button>
+    <div class="pw-err" id="pw-err"></div>
+  </div>
+</div>
 
 <header class="hdr">
   <div class="hdr-inner">
@@ -1883,6 +1940,49 @@ function tgGo(n, btn) {
   var fb = document.getElementById('tg-fund-box');
   if (fb) fb.style.display = (n === 1) ? 'block' : 'none';
 }
+</script>
+
+<script>
+// ── PASSWORD GATE ─────────────────────────────────────────────────────────────
+// The current password is "GenRowing2027" (case-sensitive).
+// To change it: compute the new hash by opening the browser console on this page
+// and running  pwHash('your new password')  — then paste the number below.
+// Changing PW_HASH re-prompts everyone (each device must re-enter the new password).
+var PW_HASH = 1220582336;
+var PW_STORE_KEY = 'genrow_auth';
+
+function pwHash(s) {
+  var h = 5381;
+  for (var i = 0; i < s.length; i++) {
+    h = ((h * 33) + s.charCodeAt(i)) >>> 0;
+  }
+  return h;
+}
+
+function pwCheck() {
+  var input = document.getElementById('pw-input');
+  var err = document.getElementById('pw-err');
+  if (pwHash(input.value) === PW_HASH) {
+    try { localStorage.setItem(PW_STORE_KEY, String(PW_HASH)); } catch(e) {}
+    document.getElementById('pw-gate').style.display = 'none';
+  } else {
+    err.textContent = 'Incorrect password';
+    input.value = '';
+    input.focus();
+  }
+}
+
+// On load: skip the gate if this device already unlocked with the current password
+(function() {
+  try {
+    if (localStorage.getItem(PW_STORE_KEY) === String(PW_HASH)) {
+      document.getElementById('pw-gate').style.display = 'none';
+      return;
+    }
+  } catch(e) {}
+  var inp = document.getElementById('pw-input');
+  if (inp) inp.focus();
+})();
 </script>
 </body>
 </html>
