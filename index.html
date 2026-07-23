@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Jinter Rowing Program</title>
+<meta name="description" content="Genazzano Jinter Rowing — weekly training program, session grids and season countdown.">
+<link rel="icon" type="image/png" href="rowing_logo.png">
 
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -959,6 +961,13 @@ const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 // ============================================================
 // STATE
 // ============================================================
+// Escape any spreadsheet text before it goes into the page, so a stray
+// < & > " ' in a cell can never break the layout.
+function esc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 let weekly   = [];         // DE_Weekly rows
 let sessions = [];         // DE_Sessions rows
 let termgrid = [];         // DE_TermGrid rows
@@ -970,13 +979,19 @@ let volFilterTerm = 'all';
 function onDataReady() {
   document.getElementById('hdr-status').textContent = 'Live ✓';
   document.getElementById('hdr-status').style.background = 'var(--burg)';
+  // Remember which week is on screen so a background refresh doesn't snap
+  // the coach back to the current week. On first load there's no selection
+  // yet, so we fall through to findCurrentWeek() below.
+  const dd = document.getElementById('wk-dd');
+  const prevVal = dd && dd.value !== '' ? dd.value : null;
   buildCountdown();
   buildDropdown();
   buildTermTables('Term 3', 't3-sg');
   buildTermTables('Term 4', 't4-sg');
   buildTermTables('Term 1', 't1-sg');
   drawVolChart();
-  showWeek(findCurrentWeek());
+  const target = (prevVal !== null && weekly[+prevVal]) ? +prevVal : findCurrentWeek();
+  showWeek(target);
 }
 
 // ============================================================
@@ -1033,7 +1048,7 @@ function buildCountdown() {
   });
   const nextEl = document.getElementById('cd-next');
   if(nextEl && nextWk) {
-    nextEl.innerHTML = `<strong>Next:</strong> ${nextWk.Term} · ${nextWk.WkLabel} · w/c ${nextWk.WkStarting}`;
+    nextEl.innerHTML = `<strong>Next:</strong> ${esc(nextWk.Term)} · ${esc(nextWk.WkLabel)} · w/c ${esc(nextWk.WkStarting)}`;
   }
 }
 
@@ -1088,8 +1103,8 @@ function showWeek(idx) {
     detail.innerHTML = `
       <div class="nd">
         <div class="nd-icon">🚣</div>
-        <h3>${w.Term} · ${w.WkLabel}</h3>
-        <p>Week of ${w.WkStarting}<br><br>
+        <h3>${esc(w.Term)} · ${esc(w.WkLabel)}</h3>
+        <p>Week of ${esc(w.WkStarting)}<br><br>
         Session detail hasn't been added yet.<br>
         Fill in the <strong>Simple Season Planner</strong> and it will appear here automatically.</p>
       </div>`;
@@ -1120,17 +1135,18 @@ function showWeek(idx) {
     if(!daySessions.length) return;
     const dateStr = dayDate(w.WkStarting, day);
     daySessions.forEach((s, si) => {
-      const wl  = s.Workload  || '';
-      const dr  = s.TechDrills || '';
-      const co  = s.Comments  || '';
-      const km  = s.KM && s.KM !== '0' && s.KM !== 0 ? s.KM : '';
-      const time = s.Time || '';
-      const rt  = rowType(wl);
+      const wlRaw = s.Workload || '';
+      const rt  = rowType(wlRaw);           // classify from the raw text
+      const wl  = esc(wlRaw);               // then escape for display
+      const dr  = esc(s.TechDrills || '');
+      const co  = esc(s.Comments  || '');
+      const km  = esc(s.KM && s.KM !== '0' && s.KM !== 0 ? s.KM : '');
+      const time = esc(s.Time || '');
       const isFirst = si === 0;
       const rowCount = daySessions.length;
       rowsHTML += `<div class="ss-row r-${rt}${isFirst ? ' day-first' : ' day-cont'}">
         ${isFirst ? `<div class="c c-day" style="grid-row:span ${rowCount}">${day}</div><div class="c c-date" style="grid-row:span ${rowCount}">${dateStr}</div>` : ''}
-        <div class="c c-no">${s.Session||''}</div>
+        <div class="c c-no">${esc(s.Session||'')}</div>
         <div class="c">${time}</div>
         <div class="c c-wl">${wl}</div>
         <div class="c">${dr}</div>
@@ -1140,10 +1156,10 @@ function showWeek(idx) {
     });
   });
 
-  const wu   = w.WarmUp    || '';
-  const tech = w.TechTheme || '';
-  const cmts = w.Comments  || '';
-  const quote = w.Quote    || '';
+  const wu   = esc(w.WarmUp    || '');
+  const tech = esc(w.TechTheme || '');
+  const cmts = esc(w.Comments  || '');
+  const quote = esc(w.Quote    || '');
 
   detail.innerHTML = `
     <div class="ss">
@@ -1151,8 +1167,8 @@ function showWeek(idx) {
       <div class="ss-info">
         <div class="ss-prog-name">Jinter Squad · 2026–27</div>
         <div class="ss-wk-label">
-          <strong>${w.Term} · ${w.WkLabel}</strong><br>
-          Week commencing ${w.WkStarting}
+          <strong>${esc(w.Term)} · ${esc(w.WkLabel)}</strong><br>
+          Week commencing ${esc(w.WkStarting)}
         </div>
         <div class="ss-wk-nums">
           Season Week ${seasonWk} of ${weekly.length}<br>
@@ -1227,7 +1243,7 @@ function buildTermTables(termName, sgId) {
   const sgEl = document.getElementById(sgId);
   if(sgEl) {
     // Build header: Day/Sno + one col per week
-    const wkLabels = termWeeks.map(r => `${r.WkLabel}<br><span style="font-size:.58rem;font-weight:400">${r.WkStarting}</span>`);
+    const wkLabels = termWeeks.map(r => `${esc(r.WkLabel)}<br><span style="font-size:.58rem;font-weight:400">${esc(r.WkStarting)}</span>`);
     sgEl.querySelector('thead').innerHTML = `<tr>
       <th class="td-day">Day</th>
       <th style="width:30px">#</th>
@@ -1277,7 +1293,7 @@ function buildTermTables(termName, sgId) {
           } else {
             style = ' style="background:#ffffff"';
           }
-          return `<td${style}>${cell}</td>`;
+          return `<td${style}>${esc(cell)}</td>`;
         }).join('')}`;
       tbody.appendChild(tr);
     });
@@ -1982,11 +1998,11 @@ function tgGo(n, btn) {
 
 <script>
 // ── PASSWORD GATE ─────────────────────────────────────────────────────────────
-// The current password is "GenRowing2027" (case-sensitive).
+// The current password is "GenRow27" (case-sensitive).
 // To change it: compute the new hash by opening the browser console on this page
 // and running  pwHash('your new password')  — then paste the number below.
 // Changing PW_HASH re-prompts everyone (each device must re-enter the new password).
-var PW_HASH = 1220582336;
+var PW_HASH = 1733392896;
 var PW_STORE_KEY = 'genrow_auth';
 
 function pwHash(s) {
