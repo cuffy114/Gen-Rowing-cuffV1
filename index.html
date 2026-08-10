@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Jinter Rowing Program</title>
 <meta name="description" content="Genazzano Jinter Rowing — weekly training program, session grids and season countdown.">
+<!-- PWA / Home Screen -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jinter Rowing">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000739">
+<link rel="apple-touch-icon" href="rowing_logo.png">
 <link rel="icon" type="image/png" href="rowing_logo.png">
 
 <style>
@@ -653,6 +660,47 @@ body{font-family:system-ui,'Segoe UI',sans-serif;background:var(--bg);color:var(
   min-height: 1.1rem; font-weight: 600;
 }
 
+/* ═══ WEEKLY PROGRAM — CARD LAYOUT ═══ */
+.wp-head{background:linear-gradient(135deg,var(--navy) 0%,var(--burg2) 130%);border-radius:12px;padding:1.2rem 1.3rem;color:#fff;margin-bottom:1rem;position:relative;overflow:hidden}
+.wp-head::after{content:"";position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:radial-gradient(circle,rgba(204,153,51,.18),transparent 70%)}
+.wp-head-term{font-family:'Courier New',monospace;font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;color:var(--gold3);margin-bottom:.35rem}
+.wp-head-title{font-family:Georgia,serif;font-size:1.5rem;font-weight:700;line-height:1.1;margin-bottom:.5rem}
+.wp-head-meta{display:flex;gap:1.3rem;font-size:.75rem;color:rgba(255,255,255,.8);flex-wrap:wrap}
+.wp-head-meta strong{color:var(--gold2);font-size:1.05rem;display:block;font-family:Georgia,serif}
+
+.wp-theme{display:flex;gap:.8rem;background:#fff;border-radius:10px;padding:.9rem 1rem;margin-bottom:1.3rem;border-left:4px solid var(--gold);flex-wrap:wrap}
+.wp-theme-block{flex:1;min-width:140px}
+.wp-theme-lbl{font-family:'Courier New',monospace;font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;color:var(--burg);margin-bottom:.2rem}
+.wp-theme-txt{font-size:.82rem;color:var(--text);line-height:1.4;white-space:pre-line}
+
+.wp-day{background:#fff;border-radius:12px;margin-bottom:.9rem;overflow:hidden;box-shadow:0 2px 12px rgba(0,7,57,.08)}
+.wp-day-head{display:flex;align-items:center;justify-content:space-between;background:var(--navy);color:#fff;padding:.6rem 1rem}
+.wp-day-name{font-family:Georgia,serif;font-size:1.05rem;font-weight:700}
+.wp-day-date{font-family:'Courier New',monospace;font-size:.72rem;color:var(--gold3)}
+
+.wp-sess{display:flex;gap:.8rem;padding:.8rem 1rem;border-bottom:1px solid #eee;border-left:6px solid #ccc}
+.wp-sess:last-child{border-bottom:none}
+.wp-sess.t-sc     {border-left-color:#2e9e5b;background:#d3edd6}
+.wp-sess.t-ergo   {border-left-color:#b01d47;background:#fcd9e6}
+.wp-sess.t-water  {border-left-color:#2b7bb5;background:#d3e6f6}
+.wp-sess.t-reg    {border-left-color:#c0000a;background:#fbd6d6}
+.wp-sess.t-camp   {border-left-color:#8b46c0;background:#ebd8f7}
+.wp-sess.t-off    {border-left-color:#bbb;background:#efefef}
+.wp-sess.t-empty  {border-left-color:#ddd;background:#fff}
+
+.wp-time{flex-shrink:0;width:52px;font-family:'Courier New',monospace;font-size:.72rem;color:var(--text3);padding-top:.15rem;font-weight:700}
+.wp-body{flex:1;min-width:0}
+.wp-wl{font-weight:700;font-size:.9rem;color:var(--navy);margin-bottom:.15rem;white-space:pre-line}
+.wp-wl.reg{color:#c0000a}
+.wp-detail{font-size:.77rem;color:var(--text2);line-height:1.4;white-space:pre-line}
+.wp-detail-cmt{color:var(--text3);font-style:italic;margin-top:.15rem}
+.wp-km{flex-shrink:0;font-family:'Courier New',monospace;font-size:.72rem;color:var(--burg);font-weight:700;padding-top:.15rem}
+
+.wp-comments{background:var(--burg);border-radius:12px;padding:1.1rem 1.3rem;margin-top:1.3rem;color:#fff}
+.wp-comments-lbl{font-family:'Courier New',monospace;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold3);margin-bottom:.5rem}
+.wp-comments-txt{font-size:.85rem;line-height:1.55;white-space:pre-line}
+.wp-quote{text-align:center;font-family:Georgia,serif;font-style:italic;font-size:1rem;color:var(--burg);margin-top:1.2rem;padding:0 1rem}
+
 </style>
 </head>
 <body>
@@ -1117,9 +1165,6 @@ function showWeek(idx) {
   const seasonWk = +w.SeasonWk;
   const wksTG = weekly.length - seasonWk;
 
-  // Build rows grouped by day — Day and Date cells span all 3 session rows
-  let rowsHTML = '';
-
   // Helper: calculate the date for a given day within the week
   function dayDate(wkStarting, dayName) {
     const dayMap = {Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5,Sun:6};
@@ -1129,31 +1174,45 @@ function showWeek(idx) {
     d.setDate(d.getDate() + (dayMap[dayName] || 0));
     return d.getDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
   }
+  const dayFull = {Mon:'Monday',Tue:'Tuesday',Wed:'Wednesday',Thu:'Thursday',Fri:'Friday',Sat:'Saturday',Sun:'Sunday'};
 
+  // Build one card per day, with a coloured row per session
+  let cardsHTML = '';
   DAYS.forEach(day => {
     const daySessions = wkSessions.filter(s => s.Day === day);
     if(!daySessions.length) return;
     const dateStr = dayDate(w.WkStarting, day);
-    daySessions.forEach((s, si) => {
+    let sessHTML = '';
+    daySessions.forEach(s => {
       const wlRaw = s.Workload || '';
+      if(!wlRaw) return;                    // skip empty session slots
       const rt  = rowType(wlRaw);           // classify from the raw text
       const wl  = esc(wlRaw);               // then escape for display
       const dr  = esc(s.TechDrills || '');
       const co  = esc(s.Comments  || '');
       const km  = esc(s.KM && s.KM !== '0' && s.KM !== 0 ? s.KM : '');
       const time = esc(s.Time || '');
-      const isFirst = si === 0;
-      const rowCount = daySessions.length;
-      rowsHTML += `<div class="ss-row r-${rt}${isFirst ? ' day-first' : ' day-cont'}">
-        ${isFirst ? `<div class="c c-day" style="grid-row:span ${rowCount}">${day}</div><div class="c c-date" style="grid-row:span ${rowCount}">${dateStr}</div>` : ''}
-        <div class="c c-no">${esc(s.Session||'')}</div>
-        <div class="c">${time}</div>
-        <div class="c c-wl">${wl}</div>
-        <div class="c">${dr}</div>
-        <div class="c">${co}</div>
-        <div class="c">${km ? km+'km' : ''}</div>
+      const isReg = rt === 'reg';
+      let detailHTML = '';
+      if(dr) detailHTML += `<div class="wp-detail">${dr}</div>`;
+      if(co) detailHTML += `<div class="wp-detail wp-detail-cmt">${co}</div>`;
+      sessHTML += `<div class="wp-sess t-${rt}">
+        <div class="wp-time">${time}</div>
+        <div class="wp-body">
+          <div class="wp-wl${isReg ? ' reg' : ''}">${wl}</div>
+          ${detailHTML}
+        </div>
+        <div class="wp-km">${km ? km+'km' : ''}</div>
       </div>`;
     });
+    if(!sessHTML) return;                   // no populated sessions that day
+    cardsHTML += `<div class="wp-day">
+      <div class="wp-day-head">
+        <div class="wp-day-name">${dayFull[day] || day}</div>
+        <div class="wp-day-date">${dateStr}</div>
+      </div>
+      ${sessHTML}
+    </div>`;
   });
 
   const wu   = esc(w.WarmUp    || '');
@@ -1162,55 +1221,25 @@ function showWeek(idx) {
   const quote = esc(w.Quote    || '');
 
   detail.innerHTML = `
-    <div class="ss">
-      <div class="ss-title">Genazzano Jinter Rowing — Weekly Program</div>
-      <div class="ss-info">
-        <div class="ss-prog-name">Jinter Squad · 2026–27</div>
-        <div class="ss-wk-label">
-          <strong>${esc(w.Term)} · ${esc(w.WkLabel)}</strong><br>
-          Week commencing ${esc(w.WkStarting)}
-        </div>
-        <div class="ss-wk-nums">
-          Season Week ${seasonWk} of ${weekly.length}<br>
-          ${wksTG} weeks to HOSG
-        </div>
+    <div class="wp-head">
+      <div class="wp-head-term">${esc(w.Term)} · ${esc(w.WkLabel)}</div>
+      <div class="wp-head-title">Week Commencing ${esc(w.WkStarting)}</div>
+      <div class="wp-head-meta">
+        <div>Season Week<strong>${seasonWk} of ${weekly.length}</strong></div>
+        <div>To HOSG<strong>${wksTG} weeks</strong></div>
+        ${totalKM ? `<div>Volume<strong>${totalKM} km</strong></div>` : ''}
+        ${ergoMins ? `<div>Ergo<strong>${ergoMins} min</strong></div>` : ''}
       </div>
-      ${wu || tech ? `
-      <div class="ss-wu">
-        <div class="ss-wu-title">Warm Up &amp;<br>Tech Theme</div>
-        <div class="ss-wu-content">${wu}</div>
-        <div class="ss-crest"><img src="rowing_logo.png" alt="Genazzano Rowing" style="width:108px;height:108px;object-fit:contain;border-radius:4px"></div>
-        <div class="ss-tech">
-          <div class="ss-tech-badge">Tech Theme</div>
-          <div class="ss-tech-text">${tech}</div>
-        </div>
-      </div>` : ''}
-      <div class="ss-cols">
-        <span>Day</span><span>Date</span><span>#</span><span>Time</span>
-        <span>Workload</span><span>Tech / Drills</span><span>Comments</span><span>KM</span>
-      </div>
-      <div class="ss-rows-grid">
-        ${rowsHTML}
-      </div>
-      <div class="ss-totals">
-        <div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div>
-        <div class="c" style="font-weight:600;color:var(--navy)">Weekly Totals</div>
-        <div class="c"></div>
-        <div class="c" style="font-family:'Courier New',monospace;font-size:.75rem;color:var(--text3)">
-          Ergo: ${ergoMins} min
-        </div>
-        <div class="c">${totalKM ? totalKM+'km' : ''}</div>
-      </div>
-      ${cmts ? `
-      <div class="ss-cmts">
-        <div class="ss-cmts-day">Notes</div>
-        <div class="ss-cmts-body">${cmts}</div>
-      </div>` : ''}
-      ${quote ? `
-      <div class="ss-quote">
-        "${quote}"
-      </div>` : ''}
-    </div>`;
+    </div>
+    ${(wu || tech) ? `
+    <div class="wp-theme">
+      ${wu ? `<div class="wp-theme-block"><div class="wp-theme-lbl">Warm Up</div><div class="wp-theme-txt">${wu}</div></div>` : ''}
+      ${tech ? `<div class="wp-theme-block"><div class="wp-theme-lbl">Tech Theme</div><div class="wp-theme-txt">${tech}</div></div>` : ''}
+    </div>` : ''}
+    ${cardsHTML}
+    ${cmts ? `<div class="wp-comments"><div class="wp-comments-lbl">Weekly Comments</div><div class="wp-comments-txt">${cmts}</div></div>` : ''}
+    ${quote ? `<div class="wp-quote">"${quote}"</div>` : ''}
+  `;
 }
 
 // ============================================================
@@ -1220,7 +1249,7 @@ function rowType(w) {
   if(!w || w === '0') return 'empty';
   const t = String(w).toLowerCase();
   if(t.includes('regatta') || t.includes('hosg')) return 'reg';
-  if(t.includes('s&c') || t.includes('gym'))      return 'sc';
+  if(t.includes('s&c') || t.includes('gym') || t.includes('land')) return 'sc';
   if(t.includes('ergo') || t.includes('sliders')) return 'ergo';
   if(t.startsWith('off') || t === 'off')          return 'off';
   if(t.includes('camp'))                           return 'camp';
@@ -2036,6 +2065,50 @@ function pwCheck() {
   } catch(e) {}
   var inp = document.getElementById('pw-input');
   if (inp) inp.focus();
+})();
+</script>
+
+<script>
+// ── PWA: inline manifest + service worker so the site can be added to a
+// phone's home screen and run full-screen. Data calls are never cached.
+(function(){
+  var manifest = {
+    name: "Genazzano Jinter Rowing",
+    short_name: "Jinter Rowing",
+    start_url: ".",
+    display: "standalone",
+    background_color: "#000739",
+    theme_color: "#000739",
+    icons: [{ src: "rowing_logo.png", sizes: "512x512", type: "image/png", purpose: "any" }]
+  };
+  var blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+  var link = document.createElement('link');
+  link.rel = 'manifest';
+  link.href = URL.createObjectURL(blob);
+  document.head.appendChild(link);
+
+  if ('serviceWorker' in navigator) {
+    var swCode = [
+      "var CACHE='genrow-v1';",
+      "self.addEventListener('install',function(e){self.skipWaiting();});",
+      "self.addEventListener('activate',function(e){e.waitUntil(self.clients.claim());});",
+      "self.addEventListener('fetch',function(e){",
+      "  var u=e.request.url;",
+      "  if(u.indexOf('script.google.com')>-1){return;}",   // always fetch live data fresh
+      "  if(u.match(/\\.(gif|png|jpg|jpeg|svg|webp)$/i)){",  // cache-first for images
+      "    e.respondWith(caches.open(CACHE).then(function(c){",
+      "      return c.match(e.request).then(function(r){",
+      "        return r || fetch(e.request).then(function(resp){c.put(e.request,resp.clone());return resp;});",
+      "      });",
+      "    }));",
+      "  }",
+      "});"
+    ].join('\n');
+    var swBlob = new Blob([swCode], {type:'application/javascript'});
+    navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(function(err){
+      console.log('SW registration skipped:', err);   // non-fatal on some hosts
+    });
+  }
 })();
 </script>
 </body>
