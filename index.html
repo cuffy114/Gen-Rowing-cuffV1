@@ -814,16 +814,21 @@ body{font-family:system-ui,'Segoe UI',sans-serif;background:var(--bg);color:var(
 // own; editing the Excel is enough — no redeploy needed.
 // ============================================================
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyhT0czoApHxJyA4VLNn3Ln7CQ4INY_lv9dXBKXHsvJMMxkjCP5PkzMZVBo_6e9G6s_4A/exec';
-const LIVE_TIMEOUT_MS = 15000;        // show an error only if the first load stalls
+const LIVE_TIMEOUT_MS = 15000;        // how long to wait for each attempt
+const RETRY_DELAYS_MS = [4000, 8000]; // automatic retries before showing an error
 const REFRESH_ON_RETURN_MIN = 10;     // silently re-fetch on tab return if data is older than this
 
 let _lastDataTime = null;
 let _initialLoadDone = false;
+let _lastWasStale = false;
+let _fetchAttempt = 0;
+let _attemptSettled = false;
 
 // JSONP callback — the Apps Script responds with handleLiveData({...})
 function handleLiveData(data) {
-  window._liveDataArrived = true;
   if (data && data.DE_Sessions && data.DE_Weekly && data.DE_TermGrid && !data.error) {
+    window._liveDataArrived = true;
+    _lastWasStale = !!data.stale;   // server served its last good copy after a Google hiccup
     weekly   = data.DE_Weekly;
     sessions = data.DE_Sessions;
     termgrid = data.DE_TermGrid;
@@ -831,21 +836,21 @@ function handleLiveData(data) {
     _lastDataTime = new Date();
     _initialLoadDone = true;
     updateStatusPill();
-  } else if (!_initialLoadDone) {
-    showDataError(new Error((data && data.error) ? data.error : 'Live data was empty or malformed.'));
+  } else {
+    settleFailure(_fetchAttempt, new Error((data && data.error) ? data.error : 'Live data was empty or malformed.'));
   }
-  // A failed background refresh keeps the data already on screen.
 }
 
 function updateStatusPill() {
   const st = document.getElementById('hdr-status');
   if (!st || !_lastDataTime) return;
   const mins = Math.floor((new Date() - _lastDataTime) / 60000);
+  const tag = _lastWasStale ? 'Cached ✓' : 'Live ✓';
   let label;
-  if (mins < 1) label = 'Live ✓ · just now';
-  else if (mins === 1) label = 'Live ✓ · 1 min ago';
-  else if (mins < 60) label = 'Live ✓ · ' + mins + ' min ago';
-  else label = 'Live ✓ · ' + Math.floor(mins / 60) + 'h ago';
+  if (mins < 1) label = tag + ' · just now';
+  else if (mins === 1) label = tag + ' · 1 min ago';
+  else if (mins < 60) label = tag + ' · ' + mins + ' min ago';
+  else label = tag + ' · ' + Math.floor(mins / 60) + 'h ago';
   st.textContent = label;
   st.style.background = 'var(--burg)';
 }
@@ -853,27 +858,44 @@ setInterval(updateStatusPill, 60000);
 
 function fetchLiveData() {
   window._liveDataArrived = false;
+  _attemptSettled = false;
+  _fetchAttempt++;
+  const attempt = _fetchAttempt;
   const script = document.createElement('script');
   script.src = APPS_SCRIPT_URL + '?callback=handleLiveData&t=' + Date.now();
   script.onerror = function () {
-    if (!window._liveDataArrived && !_initialLoadDone) {
-      showDataError(new Error('Could not reach the live data feed.'));
-    }
+    settleFailure(attempt, new Error('Could not reach the live data feed.'));
   };
   document.head.appendChild(script);
   // Remove the injected tag so they don't pile up
   setTimeout(function () {
     if (script.parentNode) script.parentNode.removeChild(script);
   }, 30000);
+  // Per-attempt watchdog for the initial load
+  setTimeout(function () {
+    settleFailure(attempt, new Error('The live data feed did not respond in time.'));
+  }, LIVE_TIMEOUT_MS);
+}
+
+// A failed attempt before the first successful load retries quietly a couple
+// of times (Apps Script cold starts and Drive hiccups usually clear in
+// seconds); only after the last retry does the error card appear. Failures
+// after data is on screen are always silent — the data stays up.
+function settleFailure(attempt, err) {
+  if (attempt !== _fetchAttempt || _attemptSettled) return;
+  if (window._liveDataArrived || _initialLoadDone) return;
+  _attemptSettled = true;
+  if (attempt <= RETRY_DELAYS_MS.length) {
+    const st = document.getElementById('hdr-status');
+    if (st) st.textContent = 'Retrying…';
+    setTimeout(fetchLiveData, RETRY_DELAYS_MS[attempt - 1]);
+  } else {
+    showDataError(err);
+  }
 }
 
 function loadData() {
   fetchLiveData();
-  setTimeout(function () {
-    if (!window._liveDataArrived && !_initialLoadDone) {
-      showDataError(new Error('The live data feed did not respond in time.'));
-    }
-  }, LIVE_TIMEOUT_MS);
 }
 
 // Silent refresh when the tab regains focus and the data is stale
@@ -909,7 +931,8 @@ function showDataError(err) {
     main.innerHTML = `<div class="error-card">
       <h3>Could not load live data</h3>
       <p>${String(err.message || err).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</p>
-      <p>The program data is served by a Google Apps Script web app. Check that its deployment access is set to <strong>"Anyone"</strong> and that the Drive file name matches the script's <code>XLSX_NAME</code>.</p>
+      <p>This is usually a temporary Google hiccup and clears on its own within a minute or two.</p>
+      <p style="margin-top:1rem"><button onclick="location.reload()" style="font-family:Georgia,serif;font-weight:700;font-size:.9rem;background:var(--burg);color:#fff;border:none;border-radius:6px;padding:.6rem 1.4rem;cursor:pointer">Try again</button></p>
     </div>`;
   }
 }
